@@ -388,6 +388,28 @@ if run_analysis:
                            color="crimson", linewidth=2, marker="s", markersize=3, 
                            label="Median", alpha=0.8)
                     
+                    # Highlight extreme tail values with larger markers and annotations
+                    extreme_bins = vol_forward_summary_sorted[vol_forward_summary_sorted["vol_bin"].isin(["95–99", "99–99.5", "99.5–99.9", "99.9–100"])]
+                    if not extreme_bins.empty:
+                        # Plot extreme values with larger, more prominent markers
+                        ax.scatter(extreme_bins["bin_numeric"], 
+                                 extreme_bins["mean"] * 100, 
+                                 color="red", s=100, marker="D", 
+                                 label="Extreme Tail (Mean)", alpha=0.9, zorder=5)
+                        ax.scatter(extreme_bins["bin_numeric"], 
+                                 extreme_bins["median"] * 100, 
+                                 color="darkred", s=100, marker="^", 
+                                 label="Extreme Tail (Median)", alpha=0.9, zorder=5)
+                        
+                        # Add annotations for extreme values
+                        for _, row in extreme_bins.iterrows():
+                            # Annotate mean values
+                            ax.annotate(f"{row['mean']*100:.2f}%", 
+                                      xy=(row["bin_numeric"], row["mean"] * 100),
+                                      xytext=(5, 10), textcoords='offset points',
+                                      fontsize=9, fontweight='bold', color='red',
+                                      bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8, edgecolor='red'))
+                    
                     ax.axhline(0, color="black", linewidth=1, alpha=0.7)
                     ax.set_xlabel("Volatility Percentile", fontsize=12, fontweight='bold')
                     ax.set_ylabel(f"{forward_horizon}-Day Forward Return (%)", fontsize=12, fontweight='bold')
@@ -480,23 +502,6 @@ if run_analysis:
                         summary_df = pd.DataFrame(summary_ranges)
                         st.dataframe(summary_df, use_container_width=True)
                     
-                    # Option to show detailed 1% bins
-                    if st.checkbox("Show detailed 1% percentile bins", value=False):
-                        st.markdown("### 📊 Detailed 1% Percentile Bins")
-                        if not vol_forward_summary.empty:
-                            # Create a more readable version of the detailed data
-                            detailed_df = vol_forward_summary.copy()
-                            detailed_df['Mean Return (%)'] = (detailed_df['mean'] * 100).round(3)
-                            detailed_df['Median Return (%)'] = (detailed_df['median'] * 100).round(3)
-                            detailed_df['Observations'] = detailed_df['count'].astype(int)
-                            
-                            display_df = detailed_df[['vol_bin', 'Mean Return (%)', 'Median Return (%)', 'Observations']].copy()
-                            display_df.columns = ['Percentile Bin', 'Mean Return (%)', 'Median Return (%)', 'Observations']
-                            
-                            st.dataframe(display_df, use_container_width=True)
-                            st.caption(f"Showing {len(display_df)} individual percentile bins")
-                        else:
-                            st.warning("No detailed bin data available")
                 else:
                     st.warning("⚠️ Insufficient data for forward returns analysis")
         
