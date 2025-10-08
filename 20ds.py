@@ -107,14 +107,15 @@ def create_histogram(series: pd.Series, title: str, marker_value: float = None):
                                edgecolor='black', linewidth=0.5)
 
     # Stats
-    mean_val = s.mean()
-    median_val = s.median()
+    mean_val = float(s.mean())
+    median_val = float(s.median())
+    std_val = float(s.std())
     p10, p25, p75 = np.percentile(s.values, [10, 25, 75])
     p90, p95, p99 = np.percentile(s.values, [90, 95, 99])
     p99_5, p99_9 = np.percentile(s.values, [99.5, 99.9])
 
     stats_text = (
-        f"Mean: ${mean_val:.2f}\nStd: ${s.std():.2f}\nMedian: ${median_val:.2f}\n\n"
+        f"Mean: ${mean_val:.2f}\nStd: ${std_val:.2f}\nMedian: ${median_val:.2f}\n\n"
         f"P10: ${p10:.2f}\nP25: ${p25:.2f}\nP75: ${p75:.2f}\nP90: ${p90:.2f}\n"
         f"P95: ${p95:.2f}\nP99: ${p99:.2f}\nP99.5: ${p99_5:.2f}\nP99.9: ${p99_9:.2f}\n\nCount: {len(s):,}"
     )
@@ -202,9 +203,9 @@ if run_analysis:
             
             if scale_to_today:
                 usd_vol_last = vol_ret * P_today
-                usd_vol_last.name = f'usd_vol{window}_scaled_to_today'
+                usd_vol_last.name = f'usd_vol{window}_scaled_to_today_last'
                 usd_vol_mean = vol_ret * P_today
-                usd_vol_mean.name = f'usd_vol{window}_scaled_to_today'
+                usd_vol_mean.name = f'usd_vol{window}_scaled_to_today_mean'
             else:
                 usd_vol_last = vol_ret * adj
                 usd_vol_last.name = f'usd_vol{window}_last'
@@ -237,22 +238,14 @@ if run_analysis:
             if not MATPLOTLIB_AVAILABLE:
                 st.error("📊 Visualizations require matplotlib. Please create a requirements.txt file with: matplotlib, yfinance, pandas, numpy")
             else:
-                # Calculate today's markers - ensure we get scalar values
+                # Calculate today's markers
                 vr = vol_ret.dropna()
-                if not vr.empty:
-                    today_vol_ret = float(vr.iloc[-1])
-                    today_usd_last = float(today_vol_ret * P_today) if np.isfinite(today_vol_ret) else None
-                else:
-                    today_vol_ret = float('nan')
-                    today_usd_last = None
+                today_vol_ret = vr.iloc[-1] if not vr.empty else float('nan')
+                today_usd_last = float(today_vol_ret * P_today) if np.isfinite(float(today_vol_ret)) else None
                 
                 if not scale_to_today and 'price_mean' in locals():
-                    pm = price_mean.dropna()
-                    if not pm.empty:
-                        last_price_mean = float(pm.iloc[-1])
-                        today_usd_mean = float(today_vol_ret * last_price_mean) if np.isfinite(today_vol_ret) and np.isfinite(last_price_mean) else None
-                    else:
-                        today_usd_mean = None
+                    last_price_mean = price_mean.iloc[-1] if not price_mean.dropna().empty else float('nan')
+                    today_usd_mean = float(today_vol_ret * last_price_mean) if np.isfinite(float(today_vol_ret)) and np.isfinite(float(last_price_mean)) else None
                 else:
                     today_usd_mean = today_usd_last
                 
