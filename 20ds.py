@@ -452,6 +452,24 @@ if run_analysis:
                     if summary_ranges:
                         summary_df = pd.DataFrame(summary_ranges)
                         st.dataframe(summary_df, use_container_width=True)
+                    
+                    # Option to show detailed 1% bins
+                    if st.checkbox("Show detailed 1% percentile bins", value=False):
+                        st.markdown("### 📊 Detailed 1% Percentile Bins")
+                        if not vol_forward_summary.empty:
+                            # Create a more readable version of the detailed data
+                            detailed_df = vol_forward_summary.copy()
+                            detailed_df['Mean Return (%)'] = (detailed_df['mean'] * 100).round(3)
+                            detailed_df['Median Return (%)'] = (detailed_df['median'] * 100).round(3)
+                            detailed_df['Observations'] = detailed_df['count'].astype(int)
+                            
+                            display_df = detailed_df[['vol_bin', 'Mean Return (%)', 'Median Return (%)', 'Observations']].copy()
+                            display_df.columns = ['Percentile Bin', 'Mean Return (%)', 'Median Return (%)', 'Observations']
+                            
+                            st.dataframe(display_df, use_container_width=True)
+                            st.caption(f"Showing {len(display_df)} individual percentile bins")
+                        else:
+                            st.warning("No detailed bin data available")
                 else:
                     st.warning("⚠️ Insufficient data for forward returns analysis")
         
