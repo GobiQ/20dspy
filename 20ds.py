@@ -117,6 +117,20 @@ def rolling_mean_price(adj: pd.Series, window: int = 20) -> pd.Series:
     return mean_price
 
 
+def compute_forward_returns(adj: pd.Series, horizon: int = 1) -> pd.Series:
+    """Compute n-day forward simple returns."""
+    fwd = adj.pct_change(periods=horizon).shift(-horizon)
+    fwd.name = f"fwd{horizon}d_ret"
+    return fwd
+
+
+def percentile_series(series: pd.Series) -> pd.Series:
+    """Return percentile rank of each value within the series (0–100)."""
+    s = series.dropna()
+    ranks = s.rank(pct=True) * 100
+    return ranks.reindex(series.index)
+
+
 def summarize_distribution(series: pd.Series) -> dict:
     """Return summary stats and percentiles."""
     s = series.dropna()
@@ -239,6 +253,7 @@ if run_analysis:
             # Compute metrics
             ret = compute_returns(adj, kind=returns_type)
             vol_ret = rolling_volatility(ret, window=window)
+            fwd1 = compute_forward_returns(adj, horizon=1)
             
             P_today = float(adj.iloc[-1])
             
@@ -247,6 +262,33 @@ if run_analysis:
             usd_vol_last.name = f'usd_vol{window}_scaled_to_today_last'
             usd_vol_mean = vol_ret * P_today
             usd_vol_mean.name = f'usd_vol{window}_scaled_to_today_mean'
+            
+            # Compute volatility percentile ranks and forward return analysis
+            vol_pct_rank = percentile_series(vol_ret)
+            
+            # Custom percentile breakpoints emphasizing extreme tails
+            vol_bins = [0, 25, 50, 75, 90, 95, 99, 99.5, 99.9, 100]
+            vol_labels = [
+                "0–25", "25–50", "50–75", "75–90",
+                "90–95", "95–99", "99–99.5", "99.5–99.9", "99.9–100"
+            ]
+            vol_cat = pd.cut(vol_pct_rank, bins=vol_bins, labels=vol_labels, include_lowest=True)
+            
+            # Combine volatility percentile and forward return
+            vol_forward_df = pd.DataFrame({
+                "vol": vol_ret,
+                "vol_pct": vol_pct_rank,
+                "vol_bin": vol_cat,
+                "fwd1d": fwd1
+            }).dropna(subset=["vol", "fwd1d"])
+            
+            # Aggregate stats
+            vol_forward_summary = (
+                vol_forward_df
+                .groupby("vol_bin")["fwd1d"]
+                .agg(["mean", "median", "count"])
+                .reset_index()
+            )
         
         # Display key metrics
         st.success(f"✅ Successfully analyzed {ticker}")
@@ -294,6 +336,57 @@ if run_analysis:
                                           marker_value=today_usd_mean)
                     if fig2:
                         st.pyplot(fig2)
+                
+                # Forward Returns Analysis
+                st.subheader("📈 Forward Returns by Volatility Percentile")
+                
+                if not vol_forward_summary.empty:
+                    fig3, ax = plt.subplots(figsize=(12, 6))
+                    ax.bar(vol_forward_summary["vol_bin"], vol_forward_summary["mean"] * 100, 
+                           color="steelblue", alpha=0.6, label="Mean")
+                    ax.plot(vol_forward_summary["vol_bin"], vol_forward_summary["median"] * 100, 
+                           color="crimson", marker="o", linewidth=2, label="Median")
+                    ax.axhline(0, color="black", linewidth=1, alpha=0.7)
+                    ax.set_xlabel("Volatility Percentile Bin", fontsize=12, fontweight='bold')
+                    ax.set_ylabel("1-Day Forward Return (%)", fontsize=12, fontweight='bold')
+                    ax.set_title(f"{ticker} 1-Day Forward Returns vs Realized Volatility Percentile", 
+                               fontsize=14, fontweight='bold', pad=20)
+                    ax.legend(fontsize=11)
+                    ax.grid(True, alpha=0.3)
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    st.pyplot(fig3)
+                    
+                    # Interpretation metrics for extreme volatility bins
+                    st.markdown("### 🧭 Extreme-Tail Behavior")
+                    extreme_bins = vol_forward_summary[vol_forward_summary["vol_bin"].isin(["95–99", "99–99.5", "99.5–99.9", "99.9–100"])]
+                    
+                    if not extreme_bins.empty:
+                        for _, row in extreme_bins.iterrows():
+                            st.markdown(
+                                f"**{row['vol_bin']}% vol bin** — "
+                                f"Mean = {row['mean']*100:.3f}% | Median = {row['median']*100:.3f}% | n = {int(row['count'])}"
+                            )
+                    
+                    # Summary insights
+                    if len(vol_forward_summary) >= 2:
+                        high_vol_bins = vol_forward_summary[vol_forward_summary["vol_bin"].isin(["95–99", "99–99.5", "99.5–99.9", "99.9–100"])]
+                        low_vol_bins = vol_forward_summary[vol_forward_summary["vol_bin"].isin(["0–25", "25–50"])]
+                        
+                        if not high_vol_bins.empty and not low_vol_bins.empty:
+                            high_vol_mean = high_vol_bins["mean"].mean() * 100
+                            low_vol_mean = low_vol_bins["mean"].mean() * 100
+                            
+                            st.markdown("### 📊 Key Insights")
+                            st.markdown(f"📈 **High Volatility Regime** (95%+): Average next-day return = **{high_vol_mean:.3f}%**")
+                            st.markdown(f"📉 **Low Volatility Regime** (0-50%): Average next-day return = **{low_vol_mean:.3f}%**")
+                            
+                            if high_vol_mean > low_vol_mean:
+                                st.markdown("🔄 **Mean Reversion Signal**: High volatility periods tend to be followed by positive returns")
+                            else:
+                                st.markdown("📉 **Momentum Signal**: High volatility periods tend to be followed by negative returns")
+                else:
+                    st.warning("⚠️ Insufficient data for forward returns analysis")
         
         with tab2:
             st.subheader("Statistical Summary")
@@ -323,6 +416,9 @@ if run_analysis:
             out_data[f'vol{window}_ret'] = vol_ret.copy()
             out_data[f'usd_vol{window}_last'] = usd_vol_last.copy()
             out_data[f'usd_vol{window}_mean'] = usd_vol_mean.copy()
+            out_data['fwd1d_ret'] = fwd1.copy()
+            out_data['vol_pct_rank'] = vol_pct_rank.copy()
+            out_data['vol_bin'] = vol_cat.copy()
             
             out = pd.DataFrame(out_data)
             
@@ -353,7 +449,8 @@ if run_analysis:
                     "scale_to_today": True
                 },
                 "usd_vol_last": stats_last,
-                "usd_vol_mean": stats_mean
+                "usd_vol_mean": stats_mean,
+                "forward_returns_by_vol_bin": vol_forward_summary.to_dict('records') if not vol_forward_summary.empty else []
             }
             
             st.download_button(
@@ -373,13 +470,17 @@ else:
     # Show example
     with st.expander("ℹ️ How it works"):
         st.markdown("""
-        This app computes the empirical distribution of rolling standard deviation in USD:
+        This app computes the empirical distribution of rolling standard deviation in USD and analyzes forward returns:
         
         1. **Fetch Data**: Downloads adjusted close prices from Yahoo Finance
         2. **Calculate Returns**: Computes daily log or simple returns
         3. **Rolling Volatility**: Calculates rolling standard deviation of returns
         4. **USD Conversion**: Converts volatility to USD by scaling all historical volatilities to today's price level
+        5. **Forward Returns Analysis**: Analyzes 1-day forward returns grouped by volatility percentile bins
         
         The histograms show where current volatility ranks historically, with percentile markers
         and a "panic zone" highlighting extreme volatility periods (95th-99th percentile).
+        
+        The forward returns analysis reveals whether high volatility periods tend to be followed by
+        mean reversion (positive returns) or momentum (negative returns).
         """)
