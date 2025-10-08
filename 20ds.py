@@ -226,9 +226,6 @@ with st.sidebar:
     
     returns_type = st.selectbox("Return Type", options=["log", "simple"], index=0)
     
-    scale_to_today = st.checkbox("Scale to Today's Price", value=False, 
-                                 help="Scale all historical volatilities to today's price level")
-    
     run_analysis = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
 
 # Main content
@@ -245,17 +242,11 @@ if run_analysis:
             
             P_today = float(adj.iloc[-1])
             
-            if scale_to_today:
-                usd_vol_last = vol_ret * P_today
-                usd_vol_last.name = f'usd_vol{window}_scaled_to_today_last'
-                usd_vol_mean = vol_ret * P_today
-                usd_vol_mean.name = f'usd_vol{window}_scaled_to_today_mean'
-            else:
-                usd_vol_last = vol_ret * adj
-                usd_vol_last.name = f'usd_vol{window}_last'
-                price_mean = rolling_mean_price(adj, window=window)
-                usd_vol_mean = vol_ret * price_mean
-                usd_vol_mean.name = f'usd_vol{window}_mean'
+            # Always scale to today's price
+            usd_vol_last = vol_ret * P_today
+            usd_vol_last.name = f'usd_vol{window}_scaled_to_today_last'
+            usd_vol_mean = vol_ret * P_today
+            usd_vol_mean.name = f'usd_vol{window}_scaled_to_today_mean'
         
         # Display key metrics
         st.success(f"✅ Successfully analyzed {ticker}")
@@ -286,12 +277,7 @@ if run_analysis:
                 vr = vol_ret.dropna()
                 today_vol_ret = vr.iloc[-1] if not vr.empty else float('nan')
                 today_usd_last = float(today_vol_ret * P_today) if np.isfinite(float(today_vol_ret)) else None
-                
-                if not scale_to_today and 'price_mean' in locals():
-                    last_price_mean = price_mean.iloc[-1] if not price_mean.dropna().empty else float('nan')
-                    today_usd_mean = float(today_vol_ret * last_price_mean) if np.isfinite(float(today_vol_ret)) and np.isfinite(float(last_price_mean)) else None
-                else:
-                    today_usd_mean = today_usd_last
+                today_usd_mean = today_usd_last
                 
                 col1, col2 = st.columns(2)
                 
@@ -338,9 +324,6 @@ if run_analysis:
             out_data[f'usd_vol{window}_last'] = usd_vol_last.copy()
             out_data[f'usd_vol{window}_mean'] = usd_vol_mean.copy()
             
-            if not scale_to_today and 'price_mean' in locals():
-                out_data['price_mean'] = price_mean.copy()
-            
             out = pd.DataFrame(out_data)
             
             st.dataframe(out.tail(50), use_container_width=True)
@@ -367,7 +350,7 @@ if run_analysis:
                     "end": end_date.strftime('%Y-%m-%d'),
                     "window": window,
                     "returns": returns_type,
-                    "scale_to_today": scale_to_today
+                    "scale_to_today": True
                 },
                 "usd_vol_last": stats_last,
                 "usd_vol_mean": stats_mean
@@ -395,9 +378,7 @@ else:
         1. **Fetch Data**: Downloads adjusted close prices from Yahoo Finance
         2. **Calculate Returns**: Computes daily log or simple returns
         3. **Rolling Volatility**: Calculates rolling standard deviation of returns
-        4. **USD Conversion**: Converts volatility to USD using:
-           - **Last Price**: Multiply by the last price in each window
-           - **Mean Price**: Multiply by the mean price over each window
+        4. **USD Conversion**: Converts volatility to USD by scaling all historical volatilities to today's price level
         
         The histograms show where current volatility ranks historically, with percentile markers
         and a "panic zone" highlighting extreme volatility periods (95th-99th percentile).
