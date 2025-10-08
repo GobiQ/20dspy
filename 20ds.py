@@ -41,11 +41,18 @@ def fetch_adj_close(ticker: str, start: str = None, end: str = None) -> pd.Serie
     if data.empty:
         raise ValueError(f"No data returned for {ticker}. Check ticker or date range.")
     
+    # Debug: Print the actual columns structure
+    print(f"Data columns: {data.columns}")
+    print(f"Data columns type: {type(data.columns)}")
+    print(f"Data shape: {data.shape}")
+    
     # Handle MultiIndex columns if present
     if isinstance(data.columns, pd.MultiIndex):
+        print("MultiIndex columns detected")
         # If MultiIndex, get the first level (ticker) and second level (column)
         adj_close_col = None
         for col in data.columns:
+            print(f"MultiIndex col: {col}")
             if col[1] == 'Adj Close':
                 adj_close_col = col
                 break
@@ -56,17 +63,31 @@ def fetch_adj_close(ticker: str, start: str = None, end: str = None) -> pd.Serie
                     adj_close_col = col
                     break
         if adj_close_col is None:
-            raise ValueError("Adjusted Close or Close not found in returned data.")
+            raise ValueError(f"Adjusted Close or Close not found in returned data. Available columns: {list(data.columns)}")
         adj = data[adj_close_col].copy()
     else:
-        # Handle regular columns
-        if 'Adj Close' not in data.columns:
-            if 'Close' in data.columns:
-                adj = data['Close'].copy()
-            else:
-                raise ValueError("Adjusted Close or Close not found in returned data.")
-        else:
-            adj = data['Adj Close'].copy()
+        print("Regular columns detected")
+        print(f"Available columns: {list(data.columns)}")
+        # Handle regular columns - try multiple possible names
+        adj = None
+        possible_names = ['Adj Close', 'Close', 'adj_close', 'close', 'Adj_Close', 'Close_Price']
+        
+        for col_name in possible_names:
+            if col_name in data.columns:
+                adj = data[col_name].copy()
+                print(f"Found column: {col_name}")
+                break
+        
+        if adj is None:
+            # If no standard names found, try to find any column that might be price data
+            for col in data.columns:
+                if 'close' in str(col).lower() or 'price' in str(col).lower():
+                    adj = data[col].copy()
+                    print(f"Found price-like column: {col}")
+                    break
+        
+        if adj is None:
+            raise ValueError(f"No price column found. Available columns: {list(data.columns)}")
     
     adj.name = 'adj_close'
     return adj
