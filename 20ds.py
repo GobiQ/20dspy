@@ -240,6 +240,11 @@ with st.sidebar:
     
     returns_type = st.selectbox("Return Type", options=["log", "simple"], index=0)
     
+    forward_horizon = st.selectbox("Forward Return Horizon (days)", 
+                                  options=[1, 2, 3, 5, 10, 20], 
+                                  index=0,
+                                  help="Number of days ahead to analyze forward returns")
+    
     run_analysis = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
 
 # Main content
@@ -253,7 +258,7 @@ if run_analysis:
             # Compute metrics
             ret = compute_returns(adj, kind=returns_type)
             vol_ret = rolling_volatility(ret, window=window)
-            fwd1 = compute_forward_returns(adj, horizon=1)
+            fwd_returns = compute_forward_returns(adj, horizon=forward_horizon)
             
             P_today = float(adj.iloc[-1])
             
@@ -278,13 +283,13 @@ if run_analysis:
                 "vol": vol_ret,
                 "vol_pct": vol_pct_rank,
                 "vol_bin": vol_cat,
-                "fwd1d": fwd1
-            }).dropna(subset=["vol", "fwd1d"])
+                f"fwd{forward_horizon}d": fwd_returns
+            }).dropna(subset=["vol", f"fwd{forward_horizon}d"])
             
             # Aggregate stats
             vol_forward_summary = (
                 vol_forward_df
-                .groupby("vol_bin")["fwd1d"]
+                .groupby("vol_bin")[f"fwd{forward_horizon}d"]
                 .agg(["mean", "median", "count"])
                 .reset_index()
             )
@@ -337,7 +342,7 @@ if run_analysis:
                         st.pyplot(fig2)
                 
                 # Forward Returns Analysis
-                st.subheader("📈 Forward Returns by Volatility Percentile")
+                st.subheader(f"📈 {forward_horizon}-Day Forward Returns by Volatility Percentile")
                 
                 if not vol_forward_summary.empty:
                     fig3, ax = plt.subplots(figsize=(14, 8))
@@ -345,7 +350,7 @@ if run_analysis:
                     # Create numeric x-axis for better plotting
                     vol_forward_summary['bin_numeric'] = vol_forward_summary['vol_bin'].apply(
                         lambda x: float(x.split('–')[0]) if '–' in str(x) else 0
-                    )
+                    ).astype(float)
                     vol_forward_summary_sorted = vol_forward_summary.sort_values('bin_numeric')
                     
                     # Plot mean and median as lines for better visibility with many bins
@@ -360,8 +365,8 @@ if run_analysis:
                     
                     ax.axhline(0, color="black", linewidth=1, alpha=0.7)
                     ax.set_xlabel("Volatility Percentile", fontsize=12, fontweight='bold')
-                    ax.set_ylabel("1-Day Forward Return (%)", fontsize=12, fontweight='bold')
-                    ax.set_title(f"{ticker} 1-Day Forward Returns vs Realized Volatility Percentile", 
+                    ax.set_ylabel(f"{forward_horizon}-Day Forward Return (%)", fontsize=12, fontweight='bold')
+                    ax.set_title(f"{ticker} {forward_horizon}-Day Forward Returns vs Realized Volatility Percentile", 
                                fontsize=14, fontweight='bold', pad=20)
                     ax.legend(fontsize=11)
                     ax.grid(True, alpha=0.3)
@@ -387,20 +392,20 @@ if run_analysis:
                     # Summary insights
                     if len(vol_forward_summary) >= 2:
                         high_vol_bins = vol_forward_summary[vol_forward_summary["vol_bin"].isin(["95–99", "99–99.5", "99.5–99.9", "99.9–100"])]
-                        low_vol_bins = vol_forward_summary[vol_forward_summary["bin_numeric"] <= 50]
+                        low_vol_bins = vol_forward_summary[vol_forward_summary["bin_numeric"].astype(float) <= 50]
                         
                         if not high_vol_bins.empty and not low_vol_bins.empty:
                             high_vol_mean = high_vol_bins["mean"].mean() * 100
                             low_vol_mean = low_vol_bins["mean"].mean() * 100
                             
                             st.markdown("### 📊 Key Insights")
-                            st.markdown(f"📈 **High Volatility Regime** (95%+): Average next-day return = **{high_vol_mean:.3f}%**")
-                            st.markdown(f"📉 **Low Volatility Regime** (0-50%): Average next-day return = **{low_vol_mean:.3f}%**")
+                            st.markdown(f"📈 **High Volatility Regime** (95%+): Average {forward_horizon}-day return = **{high_vol_mean:.3f}%**")
+                            st.markdown(f"📉 **Low Volatility Regime** (0-50%): Average {forward_horizon}-day return = **{low_vol_mean:.3f}%**")
                             
                             if high_vol_mean > low_vol_mean:
-                                st.markdown("🔄 **Mean Reversion Signal**: High volatility periods tend to be followed by positive returns")
+                                st.markdown(f"🔄 **Mean Reversion Signal**: High volatility periods tend to be followed by positive {forward_horizon}-day returns")
                             else:
-                                st.markdown("📉 **Momentum Signal**: High volatility periods tend to be followed by negative returns")
+                                st.markdown(f"📉 **Momentum Signal**: High volatility periods tend to be followed by negative {forward_horizon}-day returns")
                     
                     # Summary table for key percentile ranges
                     st.markdown("### 📋 Summary by Percentile Range")
@@ -408,8 +413,8 @@ if run_analysis:
                     for start in range(0, 100, 10):
                         end = start + 10
                         range_bins = vol_forward_summary[
-                            (vol_forward_summary["bin_numeric"] >= start) & 
-                            (vol_forward_summary["bin_numeric"] < end)
+                            (vol_forward_summary["bin_numeric"].astype(float) >= start) & 
+                            (vol_forward_summary["bin_numeric"].astype(float) < end)
                         ]
                         if not range_bins.empty:
                             summary_ranges.append({
@@ -453,7 +458,7 @@ if run_analysis:
             out_data[f'vol{window}_ret'] = vol_ret.copy()
             out_data[f'usd_vol{window}_last'] = usd_vol_last.copy()
             out_data[f'usd_vol{window}_mean'] = usd_vol_mean.copy()
-            out_data['fwd1d_ret'] = fwd1.copy()
+            out_data[f'fwd{forward_horizon}d_ret'] = fwd_returns.copy()
             out_data['vol_pct_rank'] = vol_pct_rank.copy()
             out_data['vol_bin'] = vol_cat.copy()
             
@@ -483,6 +488,7 @@ if run_analysis:
                     "end": end_date.strftime('%Y-%m-%d'),
                     "window": window,
                     "returns": returns_type,
+                    "forward_horizon": forward_horizon,
                     "scale_to_today": True
                 },
                 "usd_vol_last": stats_last,
@@ -513,11 +519,11 @@ else:
         2. **Calculate Returns**: Computes daily log or simple returns
         3. **Rolling Volatility**: Calculates rolling standard deviation of returns
         4. **USD Conversion**: Converts volatility to USD by scaling all historical volatilities to today's price level
-        5. **Forward Returns Analysis**: Analyzes 1-day forward returns grouped by volatility percentile bins
+        5. **Forward Returns Analysis**: Analyzes configurable forward returns (1-20 days) grouped by volatility percentile bins
         
         The histograms show where current volatility ranks historically, with percentile markers
         and a "panic zone" highlighting extreme volatility periods (95th-99th percentile).
         
         The forward returns analysis reveals whether high volatility periods tend to be followed by
-        mean reversion (positive returns) or momentum (negative returns).
+        mean reversion (positive returns) or momentum (negative returns) over the selected time horizon.
         """)
