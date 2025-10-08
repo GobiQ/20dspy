@@ -40,13 +40,34 @@ def fetch_adj_close(ticker: str, start: str = None, end: str = None) -> pd.Serie
     data = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=False)
     if data.empty:
         raise ValueError(f"No data returned for {ticker}. Check ticker or date range.")
-    if 'Adj Close' not in data.columns:
-        if 'Close' in data.columns:
-            adj = data['Close'].copy()
-            adj.name = 'adj_close'
-            return adj
-        raise ValueError("Adjusted Close not found in returned data.")
-    adj = data['Adj Close'].copy()
+    
+    # Handle MultiIndex columns if present
+    if isinstance(data.columns, pd.MultiIndex):
+        # If MultiIndex, get the first level (ticker) and second level (column)
+        adj_close_col = None
+        for col in data.columns:
+            if col[1] == 'Adj Close':
+                adj_close_col = col
+                break
+        if adj_close_col is None:
+            # Try Close if Adj Close not found
+            for col in data.columns:
+                if col[1] == 'Close':
+                    adj_close_col = col
+                    break
+        if adj_close_col is None:
+            raise ValueError("Adjusted Close or Close not found in returned data.")
+        adj = data[adj_close_col].copy()
+    else:
+        # Handle regular columns
+        if 'Adj Close' not in data.columns:
+            if 'Close' in data.columns:
+                adj = data['Close'].copy()
+            else:
+                raise ValueError("Adjusted Close or Close not found in returned data.")
+        else:
+            adj = data['Adj Close'].copy()
+    
     adj.name = 'adj_close'
     return adj
 
@@ -196,9 +217,6 @@ if run_analysis:
             # Fetch data
             adj = fetch_adj_close(ticker, start=start_date.strftime('%Y-%m-%d'), 
                                 end=end_date.strftime('%Y-%m-%d'))
-            
-            # Debug: Check the actual name of the adj series
-            st.write(f"Adj series name: {adj.name}")
             
             # Compute metrics
             ret = compute_returns(adj, kind=returns_type)
