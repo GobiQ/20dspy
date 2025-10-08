@@ -192,7 +192,8 @@ def create_histogram(series: pd.Series, title: str, marker_value: float = None):
                 color=colors[i], fontweight='bold')
 
     # Panic zone
-    ax.axvspan(p95, p99, alpha=0.1, color='red', label='Panic Zone (95th-99th)')
+    p100 = np.percentile(s.values, 100)
+    ax.axvspan(p95, p100, alpha=0.1, color='red', label='Panic Zone (95th-100th)')
 
     # Mean & median
     ax.axvline(mean_val, color='red', linestyle='--', linewidth=2.5, alpha=0.9, label=f"Mean ${mean_val:.2f}")
@@ -308,16 +309,6 @@ if run_analysis:
             # Sum of bin counts
             binned_count = int(vol_forward_summary["count"].sum()) if not vol_forward_summary.empty else 0
             
-            # Debug info (can be removed in production)
-            st.write("🔍 **Observation Count Validation:**")
-            st.write(f"- Total price observations (N): {N}")
-            st.write(f"- Rolling window (w): {w}")
-            st.write(f"- Forward horizon (h): {h}")
-            st.write(f"- Expected valid observations: {expected_valid_obs}")
-            st.write(f"- Aligned rows found: {aligned_rows}")
-            st.write(f"- Sum of bin counts: {binned_count}")
-            st.write(f"- ✅ Alignment check: {'PASS' if aligned_rows == expected_valid_obs else 'FAIL'}")
-            st.write(f"- ✅ Bins sum check: {'PASS' if binned_count == aligned_rows else 'FAIL'}")
         
         # Display key metrics
         st.success(f"✅ Successfully analyzed {ticker}")
