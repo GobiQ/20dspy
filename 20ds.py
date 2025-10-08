@@ -197,6 +197,9 @@ if run_analysis:
             adj = fetch_adj_close(ticker, start=start_date.strftime('%Y-%m-%d'), 
                                 end=end_date.strftime('%Y-%m-%d'))
             
+            # Debug: Check the actual name of the adj series
+            st.write(f"Adj series name: {adj.name}")
+            
             # Compute metrics
             ret = compute_returns(adj, kind=returns_type)
             vol_ret = rolling_volatility(ret, window=window)
@@ -288,17 +291,18 @@ if run_analysis:
         with tab3:
             st.subheader("Time Series Data")
             
-            # Prepare output dataframe
-            adj_copy = adj.copy()
-            
-            # Ensure all Series have unique names
-            ret.name = f'ret_{returns_type}'
-            vol_ret.name = f'vol{window}_ret'
+            # Prepare output dataframe with unique names
+            out_data = {}
+            out_data['adj_close'] = adj.copy()
+            out_data[f'ret_{returns_type}'] = ret.copy()
+            out_data[f'vol{window}_ret'] = vol_ret.copy()
+            out_data[f'usd_vol{window}_last'] = usd_vol_last.copy()
+            out_data[f'usd_vol{window}_mean'] = usd_vol_mean.copy()
             
             if not scale_to_today and 'price_mean' in locals():
-                out = pd.concat([adj_copy, ret, vol_ret, usd_vol_last, usd_vol_mean, price_mean], axis=1)
-            else:
-                out = pd.concat([adj_copy, ret, vol_ret, usd_vol_last, usd_vol_mean], axis=1)
+                out_data['price_mean'] = price_mean.copy()
+            
+            out = pd.DataFrame(out_data)
             
             st.dataframe(out.tail(50), use_container_width=True)
             st.caption(f"Showing last 50 rows of {len(out)} total")
