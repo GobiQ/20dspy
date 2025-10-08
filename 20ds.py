@@ -43,10 +43,12 @@ def fetch_adj_close(ticker: str, start: str = None, end: str = None) -> pd.Serie
     if 'Adj Close' not in data.columns:
         if 'Close' in data.columns:
             adj = data['Close'].copy()
-            adj.name = 'Adj Close'
+            adj.name = 'adj_close'
             return adj
         raise ValueError("Adjusted Close not found in returned data.")
-    return data['Adj Close'].copy()
+    adj = data['Adj Close'].copy()
+    adj.name = 'adj_close'
+    return adj
 
 
 def compute_returns(adj: pd.Series, kind: str = 'log') -> pd.Series:
@@ -288,7 +290,10 @@ if run_analysis:
             
             # Prepare output dataframe
             adj_copy = adj.copy()
-            adj_copy.name = 'adj_close'
+            
+            # Ensure all Series have unique names
+            ret.name = f'ret_{returns_type}'
+            vol_ret.name = f'vol{window}_ret'
             
             if not scale_to_today and 'price_mean' in locals():
                 out = pd.concat([adj_copy, ret, vol_ret, usd_vol_last, usd_vol_mean, price_mean], axis=1)
