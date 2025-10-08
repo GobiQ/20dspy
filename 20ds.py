@@ -263,6 +263,18 @@ if run_analysis:
             vol_ret = rolling_volatility(ret, window=window)
             fwd_returns = compute_forward_returns(adj, horizon=forward_horizon)
             
+            # Fetch VIX data for the same period
+            try:
+                vix_data = yf.download("^VIX", start=start_date.strftime('%Y-%m-%d'), 
+                                     end=end_date.strftime('%Y-%m-%d'), progress=False)
+                if not vix_data.empty and 'Close' in vix_data.columns:
+                    vix_close = vix_data['Close'].copy()
+                    vix_close.name = 'vix_close'
+                else:
+                    vix_close = None
+            except:
+                vix_close = None
+            
             P_today = float(adj.iloc[-1])
             
             # Always scale to today's price
@@ -287,7 +299,13 @@ if run_analysis:
                 "vol_pct": vol_pct_rank,
                 "vol_bin": vol_cat,
                 f"fwd{forward_horizon}d": fwd_returns
-            }).dropna(subset=["vol", f"fwd{forward_horizon}d"])
+            })
+            
+            # Add VIX data if available
+            if vix_close is not None:
+                vol_forward_df["vix"] = vix_close.reindex(vol_forward_df.index)
+            
+            vol_forward_df = vol_forward_df.dropna(subset=["vol", f"fwd{forward_horizon}d"])
             
             # Aggregate stats
             vol_forward_summary = (
@@ -476,6 +494,76 @@ if run_analysis:
                     
                     plt.tight_layout()
                     st.pyplot(fig4)
+                    
+                    # VIX vs Volatility Percentile Chart
+                    if vix_close is not None and 'vix' in vol_forward_df.columns:
+                        st.subheader("📊 VIX vs Volatility Percentile")
+                        
+                        fig5, ax3 = plt.subplots(figsize=(14, 6))
+                        
+                        # Calculate VIX stats for all bins
+                        vix_means = []
+                        vix_medians = []
+                        bin_centers_vix = []
+                        bin_labels_vix = []
+                        
+                        for _, row in vol_forward_summary_sorted.iterrows():
+                            bin_data = vol_forward_df[vol_forward_df["vol_bin"] == row["vol_bin"]]
+                            if not bin_data.empty and 'vix' in bin_data.columns:
+                                vix_bin_data = bin_data['vix'].dropna()
+                                if not vix_bin_data.empty:
+                                    vix_means.append(vix_bin_data.mean())
+                                    vix_medians.append(vix_bin_data.median())
+                                    bin_centers_vix.append(row["bin_numeric"])
+                                    bin_labels_vix.append(row["vol_bin"])
+                        
+                        if vix_means:  # Only plot if we have VIX data
+                            # Plot VIX mean and median
+                            ax3.plot(bin_centers_vix, vix_means, color="purple", linewidth=2, marker="o", 
+                                    markersize=4, label="VIX Mean", alpha=0.8)
+                            ax3.plot(bin_centers_vix, vix_medians, color="orange", linewidth=2, marker="s", 
+                                    markersize=4, label="VIX Median", alpha=0.8)
+                            
+                            # Highlight extreme tail values
+                            extreme_indices_vix = [i for i, label in enumerate(bin_labels_vix) if label in ["95–99", "99–99.5", "99.5–99.9", "99.9–100"]]
+                            if extreme_indices_vix:
+                                extreme_centers_vix = [bin_centers_vix[i] for i in extreme_indices_vix]
+                                extreme_means_vix = [vix_means[i] for i in extreme_indices_vix]
+                                extreme_medians_vix = [vix_medians[i] for i in extreme_indices_vix]
+                                extreme_labels_vix = [bin_labels_vix[i] for i in extreme_indices_vix]
+                                
+                                # Plot extreme values with larger markers
+                                ax3.scatter(extreme_centers_vix, extreme_means_vix, 
+                                          color="red", s=100, marker="D", 
+                                          label="Extreme Tail (Mean)", alpha=0.9, zorder=5)
+                                ax3.scatter(extreme_centers_vix, extreme_medians_vix, 
+                                          color="darkred", s=100, marker="^", 
+                                          label="Extreme Tail (Median)", alpha=0.9, zorder=5)
+                                
+                                # Add annotations for extreme values
+                                for center, vix_mean, vix_median, label in zip(extreme_centers_vix, extreme_means_vix, extreme_medians_vix, extreme_labels_vix):
+                                    ax3.annotate(f"{label}\nMean: {vix_mean:.1f}\nMed: {vix_median:.1f}", 
+                                               xy=(center, vix_mean),
+                                               xytext=(5, 15), textcoords='offset points',
+                                               fontsize=8, fontweight='bold', color='red',
+                                               ha='left', va='bottom',
+                                               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9, edgecolor='red'))
+                            
+                            ax3.set_xlabel("Volatility Percentile", fontsize=12, fontweight='bold')
+                            ax3.set_ylabel("VIX Level", fontsize=12, fontweight='bold')
+                            ax3.set_title(f"VIX vs {ticker} Volatility Percentile", 
+                                        fontsize=14, fontweight='bold', pad=20)
+                            ax3.set_xticks(range(0, 101, 10))
+                            ax3.set_xlim(0, 100)
+                            ax3.grid(True, alpha=0.3)
+                            ax3.legend(fontsize=11)
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig5)
+                        else:
+                            st.warning("⚠️ Insufficient VIX data for analysis")
+                    else:
+                        st.info("ℹ️ VIX data not available for the selected period")
                     
                     # Interpretation metrics for extreme volatility bins
                     st.markdown("### 🧭 Extreme-Tail Behavior")
