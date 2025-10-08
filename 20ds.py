@@ -266,11 +266,10 @@ if run_analysis:
             # Compute volatility percentile ranks and forward return analysis
             vol_pct_rank = percentile_series(vol_ret)
             
-            # Custom percentile breakpoints emphasizing extreme tails
-            vol_bins = [0, 25, 50, 75, 90, 95, 99, 99.5, 99.9, 100]
-            vol_labels = [
-                "0–25", "25–50", "50–75", "75–90",
-                "90–95", "95–99", "99–99.5", "99.5–99.9", "99.9–100"
+            # Custom percentile breakpoints with 1% granularity and fine extreme tail
+            vol_bins = list(range(0, 95, 1)) + [95, 99, 99.5, 99.9, 100]
+            vol_labels = [f"{i}–{i+1}" for i in range(0, 95, 1)] + [
+                "95–99", "99–99.5", "99.5–99.9", "99.9–100"
             ]
             vol_cat = pd.cut(vol_pct_rank, bins=vol_bins, labels=vol_labels, include_lowest=True)
             
@@ -341,19 +340,36 @@ if run_analysis:
                 st.subheader("📈 Forward Returns by Volatility Percentile")
                 
                 if not vol_forward_summary.empty:
-                    fig3, ax = plt.subplots(figsize=(12, 6))
-                    ax.bar(vol_forward_summary["vol_bin"], vol_forward_summary["mean"] * 100, 
-                           color="steelblue", alpha=0.6, label="Mean")
-                    ax.plot(vol_forward_summary["vol_bin"], vol_forward_summary["median"] * 100, 
-                           color="crimson", marker="o", linewidth=2, label="Median")
+                    fig3, ax = plt.subplots(figsize=(14, 8))
+                    
+                    # Create numeric x-axis for better plotting
+                    vol_forward_summary['bin_numeric'] = vol_forward_summary['vol_bin'].apply(
+                        lambda x: float(x.split('–')[0]) if '–' in str(x) else 0
+                    )
+                    vol_forward_summary_sorted = vol_forward_summary.sort_values('bin_numeric')
+                    
+                    # Plot mean and median as lines for better visibility with many bins
+                    ax.plot(vol_forward_summary_sorted["bin_numeric"], 
+                           vol_forward_summary_sorted["mean"] * 100, 
+                           color="steelblue", linewidth=2, marker="o", markersize=3, 
+                           label="Mean", alpha=0.8)
+                    ax.plot(vol_forward_summary_sorted["bin_numeric"], 
+                           vol_forward_summary_sorted["median"] * 100, 
+                           color="crimson", linewidth=2, marker="s", markersize=3, 
+                           label="Median", alpha=0.8)
+                    
                     ax.axhline(0, color="black", linewidth=1, alpha=0.7)
-                    ax.set_xlabel("Volatility Percentile Bin", fontsize=12, fontweight='bold')
+                    ax.set_xlabel("Volatility Percentile", fontsize=12, fontweight='bold')
                     ax.set_ylabel("1-Day Forward Return (%)", fontsize=12, fontweight='bold')
                     ax.set_title(f"{ticker} 1-Day Forward Returns vs Realized Volatility Percentile", 
                                fontsize=14, fontweight='bold', pad=20)
                     ax.legend(fontsize=11)
                     ax.grid(True, alpha=0.3)
-                    plt.xticks(rotation=45)
+                    
+                    # Set x-axis ticks for better readability
+                    ax.set_xticks(range(0, 101, 10))
+                    ax.set_xlim(0, 100)
+                    
                     plt.tight_layout()
                     st.pyplot(fig3)
                     
@@ -371,7 +387,7 @@ if run_analysis:
                     # Summary insights
                     if len(vol_forward_summary) >= 2:
                         high_vol_bins = vol_forward_summary[vol_forward_summary["vol_bin"].isin(["95–99", "99–99.5", "99.5–99.9", "99.9–100"])]
-                        low_vol_bins = vol_forward_summary[vol_forward_summary["vol_bin"].isin(["0–25", "25–50"])]
+                        low_vol_bins = vol_forward_summary[vol_forward_summary["bin_numeric"] <= 50]
                         
                         if not high_vol_bins.empty and not low_vol_bins.empty:
                             high_vol_mean = high_vol_bins["mean"].mean() * 100
@@ -385,6 +401,27 @@ if run_analysis:
                                 st.markdown("🔄 **Mean Reversion Signal**: High volatility periods tend to be followed by positive returns")
                             else:
                                 st.markdown("📉 **Momentum Signal**: High volatility periods tend to be followed by negative returns")
+                    
+                    # Summary table for key percentile ranges
+                    st.markdown("### 📋 Summary by Percentile Range")
+                    summary_ranges = []
+                    for start in range(0, 100, 10):
+                        end = start + 10
+                        range_bins = vol_forward_summary[
+                            (vol_forward_summary["bin_numeric"] >= start) & 
+                            (vol_forward_summary["bin_numeric"] < end)
+                        ]
+                        if not range_bins.empty:
+                            summary_ranges.append({
+                                "Percentile Range": f"{start}-{end}%",
+                                "Mean Return (%)": f"{range_bins['mean'].mean()*100:.3f}",
+                                "Median Return (%)": f"{range_bins['median'].mean()*100:.3f}",
+                                "Observations": int(range_bins['count'].sum())
+                            })
+                    
+                    if summary_ranges:
+                        summary_df = pd.DataFrame(summary_ranges)
+                        st.dataframe(summary_df, use_container_width=True)
                 else:
                     st.warning("⚠️ Insufficient data for forward returns analysis")
         
