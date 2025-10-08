@@ -49,17 +49,17 @@ def fetch_adj_close(ticker: str, start: str = None, end: str = None) -> pd.Serie
     # Handle MultiIndex columns if present
     if isinstance(data.columns, pd.MultiIndex):
         print("MultiIndex columns detected")
-        # If MultiIndex, get the first level (ticker) and second level (column)
+        # If MultiIndex, get the first level (column) and second level (ticker)
         adj_close_col = None
         for col in data.columns:
             print(f"MultiIndex col: {col}")
-            if col[1] == 'Adj Close':
+            if col[0] == 'Adj Close':  # First element is column name
                 adj_close_col = col
                 break
         if adj_close_col is None:
             # Try Close if Adj Close not found
             for col in data.columns:
-                if col[1] == 'Close':
+                if col[0] == 'Close':  # First element is column name
                     adj_close_col = col
                     break
         if adj_close_col is None:
