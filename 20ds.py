@@ -93,6 +93,9 @@ def summarize_distribution(series: pd.Series) -> dict:
 
 def create_histogram(series: pd.Series, title: str, marker_value: float = None):
     """Create histogram plot."""
+    if not MATPLOTLIB_AVAILABLE:
+        return None
+        
     s = series.dropna()
     if s.empty:
         return None
@@ -195,7 +198,7 @@ if run_analysis:
             ret = compute_returns(adj, kind=returns_type)
             vol_ret = rolling_volatility(ret, window=window)
             
-            P_today = adj.iloc[-1]
+            P_today = float(adj.iloc[-1])
             
             if scale_to_today:
                 usd_vol_last = vol_ret * P_today
@@ -216,10 +219,10 @@ if run_analysis:
         with col1:
             st.metric("Current Price", f"${P_today:.2f}")
         with col2:
-            today_vol = vol_ret.dropna().iloc[-1] if not vol_ret.dropna().empty else 0
+            today_vol = float(vol_ret.dropna().iloc[-1]) if not vol_ret.dropna().empty else 0
             st.metric("Current Vol (Return)", f"{today_vol:.4f}")
         with col3:
-            today_usd = usd_vol_last.dropna().iloc[-1] if not usd_vol_last.dropna().empty else 0
+            today_usd = float(usd_vol_last.dropna().iloc[-1]) if not usd_vol_last.dropna().empty else 0
             st.metric("Current USD Vol", f"${today_usd:.2f}")
         with col4:
             pct_rank = _percentile_rank(usd_vol_last.dropna().values, today_usd)
@@ -231,32 +234,35 @@ if run_analysis:
         with tab1:
             st.subheader("USD Volatility Distributions")
             
-            # Calculate today's markers
-            vr = vol_ret.dropna()
-            today_vol_ret = vr.iloc[-1] if not vr.empty else float('nan')
-            today_usd_last = float(today_vol_ret * P_today) if np.isfinite(today_vol_ret) else None
-            
-            if not scale_to_today and 'price_mean' in locals():
-                last_price_mean = price_mean.iloc[-1] if not price_mean.dropna().empty else float('nan')
-                today_usd_mean = float(today_vol_ret * last_price_mean) if np.isfinite(today_vol_ret) and np.isfinite(last_price_mean) else None
+            if not MATPLOTLIB_AVAILABLE:
+                st.error("📊 Visualizations require matplotlib. Please create a requirements.txt file with: matplotlib, yfinance, pandas, numpy")
             else:
-                today_usd_mean = today_usd_last
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                fig1 = create_histogram(usd_vol_last, 
-                                      f"{ticker} {window}-day USD Volatility (Last Price)",
-                                      marker_value=today_usd_last)
-                if fig1:
-                    st.pyplot(fig1)
-            
-            with col2:
-                fig2 = create_histogram(usd_vol_mean,
-                                      f"{ticker} {window}-day USD Volatility (Mean Price)",
-                                      marker_value=today_usd_mean)
-                if fig2:
-                    st.pyplot(fig2)
+                # Calculate today's markers
+                vr = vol_ret.dropna()
+                today_vol_ret = vr.iloc[-1] if not vr.empty else float('nan')
+                today_usd_last = float(today_vol_ret * P_today) if np.isfinite(today_vol_ret) else None
+                
+                if not scale_to_today and 'price_mean' in locals():
+                    last_price_mean = price_mean.iloc[-1] if not price_mean.dropna().empty else float('nan')
+                    today_usd_mean = float(today_vol_ret * last_price_mean) if np.isfinite(today_vol_ret) and np.isfinite(last_price_mean) else None
+                else:
+                    today_usd_mean = today_usd_last
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    fig1 = create_histogram(usd_vol_last, 
+                                          f"{ticker} {window}-day USD Volatility (Last Price)",
+                                          marker_value=today_usd_last)
+                    if fig1:
+                        st.pyplot(fig1)
+                
+                with col2:
+                    fig2 = create_histogram(usd_vol_mean,
+                                          f"{ticker} {window}-day USD Volatility (Mean Price)",
+                                          marker_value=today_usd_mean)
+                    if fig2:
+                        st.pyplot(fig2)
         
         with tab2:
             st.subheader("Statistical Summary")
