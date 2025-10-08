@@ -418,6 +418,65 @@ if run_analysis:
                     plt.tight_layout()
                     st.pyplot(fig3)
                     
+                    # Win Rate vs Volatility Percentile Chart
+                    st.subheader("🎯 Win Rate by Volatility Percentile")
+                    
+                    fig4, ax2 = plt.subplots(figsize=(14, 6))
+                    
+                    # Calculate win rates for all bins
+                    win_rates = []
+                    bin_centers = []
+                    bin_labels = []
+                    
+                    for _, row in vol_forward_summary_sorted.iterrows():
+                        bin_data = vol_forward_df[vol_forward_df["vol_bin"] == row["vol_bin"]]
+                        if not bin_data.empty:
+                            win_rate = (bin_data[f"fwd{forward_horizon}d"] > 0).mean() * 100
+                            win_rates.append(win_rate)
+                            bin_centers.append(row["bin_numeric"])
+                            bin_labels.append(row["vol_bin"])
+                    
+                    # Plot win rate as a line with markers
+                    ax2.plot(bin_centers, win_rates, color="green", linewidth=2, marker="o", 
+                            markersize=4, label="Win Rate", alpha=0.8)
+                    
+                    # Add horizontal line at 50% (random chance)
+                    ax2.axhline(50, color="gray", linestyle="--", linewidth=1, alpha=0.7, label="50% (Random)")
+                    
+                    # Highlight extreme tail values
+                    extreme_indices = [i for i, label in enumerate(bin_labels) if label in ["95–99", "99–99.5", "99.5–99.9", "99.9–100"]]
+                    if extreme_indices:
+                        extreme_centers = [bin_centers[i] for i in extreme_indices]
+                        extreme_win_rates = [win_rates[i] for i in extreme_indices]
+                        extreme_labels = [bin_labels[i] for i in extreme_indices]
+                        
+                        # Plot extreme values with larger markers
+                        ax2.scatter(extreme_centers, extreme_win_rates, 
+                                  color="red", s=100, marker="D", 
+                                  label="Extreme Tail", alpha=0.9, zorder=5)
+                        
+                        # Add annotations for extreme values
+                        for center, win_rate, label in zip(extreme_centers, extreme_win_rates, extreme_labels):
+                            ax2.annotate(f"{label}\n{win_rate:.1f}%", 
+                                       xy=(center, win_rate),
+                                       xytext=(5, 10), textcoords='offset points',
+                                       fontsize=9, fontweight='bold', color='red',
+                                       ha='left', va='bottom',
+                                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9, edgecolor='red'))
+                    
+                    ax2.set_xlabel("Volatility Percentile", fontsize=12, fontweight='bold')
+                    ax2.set_ylabel("Win Rate (%)", fontsize=12, fontweight='bold')
+                    ax2.set_title(f"{ticker} Win Rate vs Realized Volatility Percentile ({forward_horizon}-Day Forward Returns)", 
+                                fontsize=14, fontweight='bold', pad=20)
+                    ax2.set_ylim(0, 100)
+                    ax2.set_xticks(range(0, 101, 10))
+                    ax2.set_xlim(0, 100)
+                    ax2.grid(True, alpha=0.3)
+                    ax2.legend(fontsize=11)
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig4)
+                    
                     # Interpretation metrics for extreme volatility bins
                     st.markdown("### 🧭 Extreme-Tail Behavior")
                     extreme_bins = vol_forward_summary[vol_forward_summary["vol_bin"].isin(["95–99", "99–99.5", "99.5–99.9", "99.9–100"])]
