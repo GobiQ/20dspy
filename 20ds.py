@@ -432,10 +432,12 @@ if run_analysis:
                             else:
                                 st.markdown(f"📉 **Momentum Signal**: High volatility periods tend to be followed by negative {forward_horizon}-day returns")
                     
-                    # Summary table for key percentile ranges
+                    # Summary table for key percentile ranges including extreme tail
                     st.markdown("### 📋 Summary by Percentile Range")
                     summary_ranges = []
-                    for start in range(0, 100, 10):
+                    
+                    # Standard 10% ranges (0-90%)
+                    for start in range(0, 90, 10):
                         end = start + 10
                         range_bins = vol_forward_summary[
                             (vol_forward_summary["bin_numeric"].astype(float) >= start) & 
@@ -447,6 +449,31 @@ if run_analysis:
                                 "Mean Return (%)": f"{range_bins['mean'].mean()*100:.3f}",
                                 "Median Return (%)": f"{range_bins['median'].mean()*100:.3f}",
                                 "Observations": int(range_bins['count'].sum())
+                            })
+                    
+                    # 90-95% range
+                    range_bins = vol_forward_summary[
+                        (vol_forward_summary["bin_numeric"].astype(float) >= 90) & 
+                        (vol_forward_summary["bin_numeric"].astype(float) < 95)
+                    ]
+                    if not range_bins.empty:
+                        summary_ranges.append({
+                            "Percentile Range": "90-95%",
+                            "Mean Return (%)": f"{range_bins['mean'].mean()*100:.3f}",
+                            "Median Return (%)": f"{range_bins['median'].mean()*100:.3f}",
+                            "Observations": int(range_bins['count'].sum())
+                        })
+                    
+                    # Individual extreme tail bins (95-99%, 99-99.5%, 99.5-99.9%, 99.9-100%)
+                    extreme_bin_names = ["95–99", "99–99.5", "99.5–99.9", "99.9–100"]
+                    for bin_name in extreme_bin_names:
+                        bin_data = vol_forward_summary[vol_forward_summary["vol_bin"] == bin_name]
+                        if not bin_data.empty:
+                            summary_ranges.append({
+                                "Percentile Range": f"{bin_name}%",
+                                "Mean Return (%)": f"{bin_data['mean'].iloc[0]*100:.3f}",
+                                "Median Return (%)": f"{bin_data['median'].iloc[0]*100:.3f}",
+                                "Observations": int(bin_data['count'].iloc[0])
                             })
                     
                     if summary_ranges:
