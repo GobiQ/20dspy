@@ -240,10 +240,12 @@ with st.sidebar:
     
     returns_type = st.selectbox("Return Type", options=["log", "simple"], index=0)
     
-    forward_horizon = st.selectbox("Forward Return Horizon (days)", 
-                                  options=[1, 2, 3, 5, 10, 20], 
-                                  index=0,
-                                  help="Number of days ahead to analyze forward returns")
+    forward_horizon = st.number_input("Forward Return Horizon (days)", 
+                                     min_value=1, 
+                                     max_value=252, 
+                                     value=1, 
+                                     step=1,
+                                     help="Number of days ahead to analyze forward returns (1-252 days)")
     
     run_analysis = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
 
