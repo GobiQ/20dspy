@@ -459,11 +459,19 @@ if run_analysis:
                             (vol_forward_summary["bin_numeric"].astype(float) < end)
                         ]
                         if not range_bins.empty:
+                            # Calculate win rate for this range
+                            range_data = vol_forward_df[
+                                (vol_forward_df["vol_pct"].astype(float) >= start) & 
+                                (vol_forward_df["vol_pct"].astype(float) < end)
+                            ]
+                            win_rate = (range_data[f"fwd{forward_horizon}d"] > 0).mean() * 100 if not range_data.empty else 0
+                            
                             summary_ranges.append({
                                 "Percentile Range": f"{start}-{end}%",
                                 "Mean Return (%)": f"{range_bins['mean'].mean()*100:.3f}",
                                 "Median Return (%)": f"{range_bins['median'].mean()*100:.3f}",
-                                "Observations": int(range_bins['count'].sum())
+                                "Observations": int(range_bins['count'].sum()),
+                                "Win Rate (%)": f"{win_rate:.1f}"
                             })
                     
                     # 90-95% range
@@ -472,11 +480,19 @@ if run_analysis:
                         (vol_forward_summary["bin_numeric"].astype(float) < 95)
                     ]
                     if not range_bins.empty:
+                        # Calculate win rate for 90-95% range
+                        range_data = vol_forward_df[
+                            (vol_forward_df["vol_pct"].astype(float) >= 90) & 
+                            (vol_forward_df["vol_pct"].astype(float) < 95)
+                        ]
+                        win_rate = (range_data[f"fwd{forward_horizon}d"] > 0).mean() * 100 if not range_data.empty else 0
+                        
                         summary_ranges.append({
                             "Percentile Range": "90-95%",
                             "Mean Return (%)": f"{range_bins['mean'].mean()*100:.3f}",
                             "Median Return (%)": f"{range_bins['median'].mean()*100:.3f}",
-                            "Observations": int(range_bins['count'].sum())
+                            "Observations": int(range_bins['count'].sum()),
+                            "Win Rate (%)": f"{win_rate:.1f}"
                         })
                     
                     # Individual extreme tail bins (95-99%, 99-99.5%, 99.5-99.9%, 99.9-100%)
@@ -484,11 +500,16 @@ if run_analysis:
                     for bin_name in extreme_bin_names:
                         bin_data = vol_forward_summary[vol_forward_summary["vol_bin"] == bin_name]
                         if not bin_data.empty:
+                            # Calculate win rate for this extreme bin
+                            extreme_data = vol_forward_df[vol_forward_df["vol_bin"] == bin_name]
+                            win_rate = (extreme_data[f"fwd{forward_horizon}d"] > 0).mean() * 100 if not extreme_data.empty else 0
+                            
                             summary_ranges.append({
                                 "Percentile Range": f"{bin_name}%",
                                 "Mean Return (%)": f"{bin_data['mean'].iloc[0]*100:.3f}",
                                 "Median Return (%)": f"{bin_data['median'].iloc[0]*100:.3f}",
-                                "Observations": int(bin_data['count'].iloc[0])
+                                "Observations": int(bin_data['count'].iloc[0]),
+                                "Win Rate (%)": f"{win_rate:.1f}"
                             })
                     
                     if summary_ranges:
