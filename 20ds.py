@@ -237,14 +237,22 @@ if run_analysis:
             if not MATPLOTLIB_AVAILABLE:
                 st.error("📊 Visualizations require matplotlib. Please create a requirements.txt file with: matplotlib, yfinance, pandas, numpy")
             else:
-                # Calculate today's markers
+                # Calculate today's markers - ensure we get scalar values
                 vr = vol_ret.dropna()
-                today_vol_ret = vr.iloc[-1] if not vr.empty else float('nan')
-                today_usd_last = float(today_vol_ret * P_today) if np.isfinite(today_vol_ret) else None
+                if not vr.empty:
+                    today_vol_ret = float(vr.iloc[-1])
+                    today_usd_last = float(today_vol_ret * P_today) if np.isfinite(today_vol_ret) else None
+                else:
+                    today_vol_ret = float('nan')
+                    today_usd_last = None
                 
                 if not scale_to_today and 'price_mean' in locals():
-                    last_price_mean = price_mean.iloc[-1] if not price_mean.dropna().empty else float('nan')
-                    today_usd_mean = float(today_vol_ret * last_price_mean) if np.isfinite(today_vol_ret) and np.isfinite(last_price_mean) else None
+                    pm = price_mean.dropna()
+                    if not pm.empty:
+                        last_price_mean = float(pm.iloc[-1])
+                        today_usd_mean = float(today_vol_ret * last_price_mean) if np.isfinite(today_vol_ret) and np.isfinite(last_price_mean) else None
+                    else:
+                        today_usd_mean = None
                 else:
                     today_usd_mean = today_usd_last
                 
