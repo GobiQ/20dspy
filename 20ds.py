@@ -403,12 +403,14 @@ if run_analysis:
                         
                         # Add annotations for extreme values
                         for _, row in extreme_bins.iterrows():
-                            # Annotate mean values
-                            ax.annotate(f"{row['mean']*100:.2f}%", 
+                            # Annotate with both percentile and return value
+                            annotation_text = f"{row['vol_bin']}\n{row['mean']*100:.2f}%"
+                            ax.annotate(annotation_text, 
                                       xy=(row["bin_numeric"], row["mean"] * 100),
-                                      xytext=(5, 10), textcoords='offset points',
+                                      xytext=(5, 15), textcoords='offset points',
                                       fontsize=9, fontweight='bold', color='red',
-                                      bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8, edgecolor='red'))
+                                      ha='left', va='bottom',
+                                      bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='red', linewidth=1.5))
                     
                     ax.axhline(0, color="black", linewidth=1, alpha=0.7)
                     ax.set_xlabel("Volatility Percentile", fontsize=12, fontweight='bold')
