@@ -295,6 +295,29 @@ if run_analysis:
                 .agg(["mean", "median", "count"])
                 .reset_index()
             )
+            
+            # Validation checksum for observation counts
+            N = len(adj)
+            w = window
+            h = forward_horizon
+            expected_valid_obs = max(0, N - w - h)
+            
+            # Rows where BOTH vol and forward return are available
+            aligned_rows = vol_forward_df.dropna(subset=["vol", f"fwd{forward_horizon}d"]).shape[0]
+            
+            # Sum of bin counts
+            binned_count = int(vol_forward_summary["count"].sum()) if not vol_forward_summary.empty else 0
+            
+            # Debug info (can be removed in production)
+            st.write("🔍 **Observation Count Validation:**")
+            st.write(f"- Total price observations (N): {N}")
+            st.write(f"- Rolling window (w): {w}")
+            st.write(f"- Forward horizon (h): {h}")
+            st.write(f"- Expected valid observations: {expected_valid_obs}")
+            st.write(f"- Aligned rows found: {aligned_rows}")
+            st.write(f"- Sum of bin counts: {binned_count}")
+            st.write(f"- ✅ Alignment check: {'PASS' if aligned_rows == expected_valid_obs else 'FAIL'}")
+            st.write(f"- ✅ Bins sum check: {'PASS' if binned_count == aligned_rows else 'FAIL'}")
         
         # Display key metrics
         st.success(f"✅ Successfully analyzed {ticker}")
